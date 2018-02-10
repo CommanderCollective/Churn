@@ -1,0 +1,94 @@
+from scipy import stats
+from scipy.cluster import vq
+import pandas as pd
+import pyodbc
+from scipy.stats import skew as st
+import numpy as np
+from random import choice
+import csv
+
+#NON UNITED
+#Loads Data
+print('Loading data...')
+UFreq= pd.read_csv('NonUnited_Source.csv')
+
+print('Eliminating noise in the data...')
+#Eliminate records with few trips...
+UFreq = UFreq.set_index(['email'], drop = True, inplace = False)
+UFreq['caca']= (UFreq.sum(axis=1))
+UFreq = UFreq[UFreq.caca > 10]
+del UFreq['caca']
+print(UFreq)
+
+data = {'a': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105]
+,
+        'b': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105]}
+df = pd.DataFrame(data)
+
+
+result =[]
+for index, row in UFreq.iterrows():
+    slope, intercept, rValue, pValue, stdERR = stats.linregress(df['a'], row)
+    result.append([index, slope, intercept, rValue, pValue, stdERR])
+finalNonUnited = pd.DataFrame(result)
+finalNonUnited.columns = 'index', 'slope', 'intercept', 'rValue', 'pValue', 'stdERR'
+result = UFreq.append(finalNonUnited, ignore_index=True)
+print('Writing file...')
+
+
+
+
+
+#UNITED
+#Loads Data
+print('Loading data...')
+UFreq= pd.read_csv('United_Source.csv')
+UFreqStack= UFreq.stack(level = -1)
+
+
+print('Eliminating noise in the data...')
+#Eliminate records with few trips...
+UFreq = UFreq.set_index(['email'], drop = True, inplace = False)
+UFreq['caca']= (UFreq.sum(axis=1))
+UFreq = UFreq[UFreq.caca > 10]
+del UFreq['caca']
+
+
+print('Calculating Slopes...')
+result =[]
+for index, row in UFreq.iterrows():
+    slope, intercept, rValue, pValue, stdERR = stats.linregress(df['a'], row)
+    result.append([index, slope, intercept, rValue, pValue, stdERR])
+finalUnited = pd.DataFrame(result)
+finalUnited.columns = 'index', 'slopeU', 'interceptU', 'rValueU', 'pValueU', 'stdERRU'
+result = UFreq.append(finalUnited, ignore_index=True)
+print(list(finalUnited))
+print('Writing file...')
+# finalUnited.to_csv("UnitedStats.csv", sep='|', encoding='utf-8')
+
+
+
+#              slope
+count = 4530.000000
+SNU25   =   -0.002568
+SNU50    =   0.000394
+SNU75  =     0.003844
+
+            # slopeU
+SU25    =  -0.002654
+SU50   =    0.000352
+SU75    =   0.003273
+
+
+
+Slopes = pd.merge(finalNonUnited, finalUnited, how='inner', on= 'index')
+
+Slopes['bucketsOfInterest']= np.where(((Slopes['slope'] >= SNU75) & (Slopes['slopeU']< SU25)), 'Gain for Others',
+                                      np.where(((Slopes['slope'] < SNU25) & (Slopes['slopeU'] > SU75)), 'Gain for United',
+                                               np.where((( 0.000394 < Slopes['slope'])& (Slopes['slope']  < 0.003844)) & (( -0.002568 < Slopes['slopeU'])& (Slopes['slopeU']  < 0.000394)), 'Trend Not United',
+                                                        np.where((( 0.000352 < Slopes['slope'])& (Slopes['slope']  < 0.003273)) & (( 0.000394< Slopes['slopeU'])& (Slopes['slopeU']  < 0.003844)), 'Trend United','others'))))
+
+print(Slopes.describe())
+# print(Slopes.bucketsOfInterest.unique())
+
+Slopes.to_csv("Slopes.csv", sep='|', encoding='utf-8')
